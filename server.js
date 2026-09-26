@@ -23,23 +23,27 @@ function saveChunks() {
   fs.writeFileSync(CHUNKS_FILE, JSON.stringify(allChunks, null, 2));
 }
 
-// ---- Upload: process PDF, then embed every chunk ----
+// Every request must carry a userId (sent as a header from the frontend)
+function getUserId(req) {
+  return req.headers["x-user-id"] || "anonymous";
+}
+
+// ---- Upload ----
 app.post("/upload", upload.array("pdfs", 10), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No files uploaded." });
     }
+    const userId = getUserId(req);
 
     const results = [];
     for (const file of req.files) {
-      const sourceName = Buffer.from(file.originalname, "latin1").toString(
-        "utf8",
-      );
+      const sourceName = Buffer.from(file.originalname, "latin1").toString("utf8");
       const newChunks = await processPDF(file.path, sourceName);
 
-      // Embed each chunk (sequential, to stay within free-tier rate limits)
       for (const chunk of newChunks) {
         chunk.embedding = await getEmbedding(genAI, chunk.text);
+        chunk.userId = userId;
       }
 
       allChunks = allChunks.concat(newChunks);
@@ -48,41 +52,46 @@ app.post("/upload", upload.array("pdfs", 10), async (req, res) => {
     }
 
     saveChunks();
-    res.json({ processed: results, totalChunks: allChunks.length });
+    const userChunkCount = allChunks.filter((c) => c.userId === userId).length;
+    res.json({ processed: results, totalChunks: userChunkCount });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to process PDF(s)." });
   }
 });
 
+// ---- List documents (only this user's) ----
 app.get("/documents", (req, res) => {
+  const userId = getUserId(req);
+  const userChunks = allChunks.filter((c) => c.userId === userId);
+
   const counts = {};
-  for (const chunk of allChunks) {
+  for (const chunk of userChunks) {
     counts[chunk.source] = (counts[chunk.source] || 0) + 1;
   }
-  const docs = Object.entries(counts).map(([source, chunkCount]) => ({
-    source,
-    chunkCount,
-  }));
-  res.json({ documents: docs, totalChunks: allChunks.length });
+  const docs = Object.entries(counts).map(([source, chunkCount]) => ({ source, chunkCount }));
+  res.json({ documents: docs, totalChunks: userChunks.length });
 });
 
+// ---- Remove one document (only this user's) ----
 app.post("/remove", (req, res) => {
+  const userId = getUserId(req);
   const { source } = req.body;
   if (!source) return res.status(400).json({ error: "No source specified." });
+
   const before = allChunks.length;
-  allChunks = allChunks.filter((c) => c.source !== source);
+  allChunks = allChunks.filter((c) => !(c.source === source && c.userId === userId));
   saveChunks();
-  res.json({
-    message: `Removed ${source}`,
-    removedChunks: before - allChunks.length,
-  });
+
+  res.json({ message: `Removed ${source}`, removedChunks: before - allChunks.length });
 });
 
+// ---- Clear all (only this user's) ----
 app.post("/clear", (req, res) => {
-  allChunks = [];
+  const userId = getUserId(req);
+  allChunks = allChunks.filter((c) => c.userId !== userId);
   saveChunks();
-  res.json({ message: "All documents cleared." });
+  res.json({ message: "Your documents cleared." });
 });
 
 // ---- Structured answer generation ----
@@ -131,30 +140,27 @@ Answer:`;
   }
 }
 
-const CONFIDENCE_THRESHOLD = 0.55; // below this, don't trust the retrieval
+const CONFIDENCE_THRESHOLD = 0.55;
 
 app.post("/ask", async (req, res) => {
   try {
+    const userId = getUserId(req);
     const { question } = req.body;
-    if (!question)
-      return res.status(400).json({ error: "No question provided." });
-    if (allChunks.length === 0) {
-      return res.json({
-        answer: "No documents uploaded yet. Upload a PDF first.",
-        sources: [],
-        confidence: "none",
-      });
+    if (!question) return res.status(400).json({ error: "No question provided." });
+
+    const userChunks = allChunks.filter((c) => c.userId === userId);
+    if (userChunks.length === 0) {
+      return res.json({ answer: "No documents uploaded yet. Upload a PDF first.", sources: [], confidence: "none" });
     }
 
     const queryEmbedding = await getEmbedding(genAI, question);
-    const results = embeddingSearch(queryEmbedding, allChunks, 4);
+    const results = embeddingSearch(queryEmbedding, userChunks, 4);
 
     const topScore = results.length > 0 ? results[0].score : 0;
 
     if (topScore < CONFIDENCE_THRESHOLD) {
       return res.json({
-        answer:
-          "I couldn't find this in your uploaded material. Try rephrasing, or upload the relevant document.",
+        answer: "I couldn't find this in your uploaded material. Try rephrasing, or upload the relevant document.",
         sources: [],
         confidence: "low",
       });
@@ -172,8 +178,7 @@ app.post("/ask", async (req, res) => {
       }
     }
 
-    const confidence =
-      topScore > 0.75 ? "high" : topScore > 0.6 ? "medium" : "low";
+    const confidence = topScore > 0.75 ? "high" : topScore > 0.6 ? "medium" : "low";
 
     res.json({ answer, sources, confidence });
   } catch (err) {
@@ -182,7 +187,7 @@ app.post("/ask", async (req, res) => {
   }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
