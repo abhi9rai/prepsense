@@ -32,21 +32,21 @@ If your notes genuinely don't cover something, it says so instead of guessing �
 ## Architecture
 
 PDF Upload
-↓
+->
 Page-by-page text extraction + cleanup
-↓
+->
 Chunking (150 words/chunk, tagged with source + page)
-↓
+->
 Embedding generation (via API)
-↓
+->
 [stored per-user, in-memory + JSON persistence]
-↓
+->
 Question → embedded → cosine similarity search against all chunks
-↓
+->
 Confidence check (reject if best match too weak)
-↓
+->
 Language model generates structured answer from top-matching chunks
-↓
+->
 Answer + page citations returned to UI
 
 
@@ -84,4 +84,4 @@ Visit `http://localhost:3000`.
 
 ---
 
-Built by [Abhinav](https://github.com/abhi9rai) — final-year B.Tech CSE student, preparing for CDS/AFCAT while learning full-stack development.
+Built by [Abhinav](https://github.com/abhi9rai)
