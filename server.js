@@ -38,7 +38,9 @@ app.post("/upload", upload.array("pdfs", 10), async (req, res) => {
 
     const results = [];
     for (const file of req.files) {
-      const sourceName = Buffer.from(file.originalname, "latin1").toString("utf8");
+      const sourceName = Buffer.from(file.originalname, "latin1").toString(
+        "utf8",
+      );
       const newChunks = await processPDF(file.path, sourceName);
 
       for (const chunk of newChunks) {
@@ -56,7 +58,15 @@ app.post("/upload", upload.array("pdfs", 10), async (req, res) => {
     res.json({ processed: results, totalChunks: userChunkCount });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to process PDF(s)." });
+    if (err.status === 429) {
+      return res.status(429).json({
+        error:
+          "PrepSense has hit its daily free usage limit. Please try again later (resets daily) or ask fewer questions in quick succession.",
+      });
+    }
+    res
+      .status(500)
+      .json({ error: "Failed to generate answer. Please try again." });
   }
 });
 
@@ -69,7 +79,10 @@ app.get("/documents", (req, res) => {
   for (const chunk of userChunks) {
     counts[chunk.source] = (counts[chunk.source] || 0) + 1;
   }
-  const docs = Object.entries(counts).map(([source, chunkCount]) => ({ source, chunkCount }));
+  const docs = Object.entries(counts).map(([source, chunkCount]) => ({
+    source,
+    chunkCount,
+  }));
   res.json({ documents: docs, totalChunks: userChunks.length });
 });
 
@@ -80,10 +93,15 @@ app.post("/remove", (req, res) => {
   if (!source) return res.status(400).json({ error: "No source specified." });
 
   const before = allChunks.length;
-  allChunks = allChunks.filter((c) => !(c.source === source && c.userId === userId));
+  allChunks = allChunks.filter(
+    (c) => !(c.source === source && c.userId === userId),
+  );
   saveChunks();
 
-  res.json({ message: `Removed ${source}`, removedChunks: before - allChunks.length });
+  res.json({
+    message: `Removed ${source}`,
+    removedChunks: before - allChunks.length,
+  });
 });
 
 // ---- Clear all (only this user's) ----
@@ -146,11 +164,16 @@ app.post("/ask", async (req, res) => {
   try {
     const userId = getUserId(req);
     const { question } = req.body;
-    if (!question) return res.status(400).json({ error: "No question provided." });
+    if (!question)
+      return res.status(400).json({ error: "No question provided." });
 
     const userChunks = allChunks.filter((c) => c.userId === userId);
     if (userChunks.length === 0) {
-      return res.json({ answer: "No documents uploaded yet. Upload a PDF first.", sources: [], confidence: "none" });
+      return res.json({
+        answer: "No documents uploaded yet. Upload a PDF first.",
+        sources: [],
+        confidence: "none",
+      });
     }
 
     const queryEmbedding = await getEmbedding(genAI, question);
@@ -160,7 +183,8 @@ app.post("/ask", async (req, res) => {
 
     if (topScore < CONFIDENCE_THRESHOLD) {
       return res.json({
-        answer: "I couldn't find this in your uploaded material. Try rephrasing, or upload the relevant document.",
+        answer:
+          "I couldn't find this in your uploaded material. Try rephrasing, or upload the relevant document.",
         sources: [],
         confidence: "low",
       });
@@ -178,7 +202,8 @@ app.post("/ask", async (req, res) => {
       }
     }
 
-    const confidence = topScore > 0.75 ? "high" : topScore > 0.6 ? "medium" : "low";
+    const confidence =
+      topScore > 0.75 ? "high" : topScore > 0.6 ? "medium" : "low";
 
     res.json({ answer, sources, confidence });
   } catch (err) {
