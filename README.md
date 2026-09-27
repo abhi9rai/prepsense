@@ -1,6 +1,6 @@
 # 📘 PrepSense
 
-**A study assistant that turns your own PDFs into a searchable, question-answering knowledge base — built for CDS/AFCAT exam prep, but works for any subject.**
+**A study assistant that turns your own PDFs into a searchable, question-answering knowledge base.**
 
 🔗 **Live demo:** [https://prepsense-9lsz.onrender.com](https://prepsense-9lsz.onrender.com)
 *(hosted on Render's free tier — first load after inactivity may take 30-50s to spin up)*
@@ -26,8 +26,8 @@ If your notes genuinely don't cover something, it says so instead of guessing �
 - **Backend**: Node.js, Express
 - **PDF processing**: `pdf-parse-new`, custom text-cleaning pipeline (handles common PDF extraction artifacts like duplicated overlapping text)
 - **Search & generation**: text embedding model for semantic search, a lightweight generative language model for structured answer generation, accessed via API
-- **Frontend**: Vanilla HTML/CSS/JS (no framework) — drag-and-drop upload, animated chat interface
-- **Hosting**: Render (free tier)
+- **Frontend**: Vanilla HTML/CSS/JS — drag-and-drop upload, animated chat interface
+- **Hosting**: Render
 
 ## Architecture
 
@@ -50,26 +50,7 @@ Language model generates structured answer from top-matching chunks
 Answer + page citations returned to UI
 
 
-## Running it locally
-
-```bash
-git clone https://github.com/abhi9rai/prepsense.git
-cd prepsense
-npm install
-```
-
-Create a `.env` file:
-
-
-Get a free API key from your generative AI provider's developer console.
-
-```bash
-node server.js
-```
-
-Visit `http://localhost:3000`.
-
-## Known limitations (honest, not hidden)
+## Known limitations
 
 - Free-tier hosting means uploaded documents don't persist across server restarts/redeploys — fine for demo use, not production-grade storage
 - No real user accounts — isolation is via anonymous per-browser IDs, not authentication
