@@ -10,7 +10,7 @@ const upload = multer({ dest: "uploads/" });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static("client/dist"));
 
 let allChunks = [];
 const CHUNKS_FILE = "all_chunks.json";
