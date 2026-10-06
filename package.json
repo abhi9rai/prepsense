@@ -1,13 +1,15 @@
 {
-  "name": "PrepSense",
+  "name": "prepsense",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "RAG-based study assistant: upload PDFs and get grounded answers with page citations.",
+  "main": "server/server.js",
   "scripts": {
+    "start": "node server/server.js",
+    "build": "npm install --prefix client --include=dev && npm run build --prefix client",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["rag", "gemini", "llm", "express", "react"],
+  "author": "Abhinav Rai",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
